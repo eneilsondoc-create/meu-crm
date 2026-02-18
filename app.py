@@ -34,38 +34,30 @@ aba1, aba2 = st.tabs(["👥 Gerenciar Clientes", "📅 Agenda Semanal"])
 
 # --- ABA 1: CLIENTES ---
 with aba1:
-    df_c = carregar_dados(
-        CLIENTES_FILE, ["Nome", "CPF", "Endereço", "Telefone", "Data Cadastro"])
+    st.subheader("📝 Cadastro de Clientes")
+    
+    # Em vez de colunas muito apertadas, usamos campos simples
+    # No celular, o endereço aparecerá logo após o CPF
+    nome = st.text_input("Nome Completo")
+    cpf = st.text_input("CPF (Somente números)")
+    
+    # Campo de endereço com área de texto (melhor para celular)
+    endereco = st.text_area("Endereço Completo", help="Rua, Número, Bairro e Cidade")
+    
+    telefone = st.text_input("Telefone/WhatsApp")
 
-    with st.expander("📝 Cadastro e Edição", expanded=True):
-        c_f1, c_f2 = st.columns(2)
-        nome = c_f1.text_input("Nome Completo")
-        cpf = c_f1.text_input("CPF")
-
-        btn_salvar, btn_att, btn_del, _ = st.columns([1, 1, 1, 4])
-
-        if btn_salvar.button("💾 Salvar", type="primary"):
-            if cpf and nome:
+    # Botões grandes para facilitar o toque com o dedo
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("💾 Salvar Cliente", type="primary", use_container_width=True):
+            if nome and cpf:
                 agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                novo = pd.DataFrame(
-                    [{"Nome": nome, "CPF": cpf, "Data Cadastro": agora}])
+                # Garanta que a coluna 'Endereço' está escrita EXATAMENTE igual ao Excel
+                novo = pd.DataFrame([{"Nome": nome, "CPF": cpf, "Endereço": endereco, "Telefone": telefone, "Data Cadastro": agora}])
                 df_c = pd.concat([df_c, novo], ignore_index=True)
                 df_c.to_excel(CLIENTES_FILE, index=False)
+                st.success("✅ Salvo!")
                 st.rerun()
-
-        if btn_att.button("🔄 Atualizar"):
-            if cpf in df_c['CPF'].values:
-                df_c.loc[df_c['CPF'] == cpf, "Nome"] = nome
-                df_c.to_excel(CLIENTES_FILE, index=False)
-                st.rerun()
-
-        if btn_del.button("🗑️ Apagar"):
-            df_c = df_c[df_c['CPF'] != cpf]
-            df_c.to_excel(CLIENTES_FILE, index=False)
-            st.rerun()
-
-    st.dataframe(df_c, use_container_width=True, hide_index=True)
-
 # --- ABA 2: AGENDA ---
 with aba2:
     df_a = carregar_dados(AGENDA_FILE, ["Dia", "Horário", "Cliente"])
@@ -122,3 +114,4 @@ with aba2:
             grade.append(linha)
 
         st.table(pd.DataFrame(grade))
+
