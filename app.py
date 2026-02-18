@@ -3,135 +3,162 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# 1. Configuração da página
-st.set_page_config(page_title="CRM Master", layout="wide")
+# 1. Configuração da Página
+st.set_page_config(page_title="Gestão Financeira VIP", layout="wide")
 
-CLIENTES_FILE = "clientes.xlsx"
-AGENDA_FILE = "agenda.xlsx"
+VENDAS_FILE = "vendas.xlsx"
+DESPESAS_FILE = "despesas.xlsx"
 
-# Função para carregar dados tratando erros de tipo (Float vs Str)
+# Função robusta para carregar dados e evitar erros de float/NaN
+
+
 def carregar_dados(file, colunas):
     if os.path.exists(file):
         try:
             df = pd.read_excel(file)
             df = df.astype(str).replace('nan', '')
             for col in colunas:
-                if col not in df.columns: df[col] = ""
+                if col not in df.columns:
+                    df[col] = ""
             return df
         except:
             return pd.DataFrame(columns=colunas)
     return pd.DataFrame(columns=colunas)
 
-# --- INTERFACE ---
-st.title("🚀 Meu CRM Profissional")
 
-aba1, aba2 = st.tabs(["👥 Clientes", "📅 Agenda"])
+# --- BARRA LATERAL (NAVEGAÇÃO) ---
+st.sidebar.title("🧭 Menu Principal")
+pagina = st.sidebar.radio(
+    "Ir para:", ["💰 Lançamentos", "📉 Despesas", "📊 Resumo Geral"])
 
-# --- ABA 1: CLIENTES (Com Botões de Editar e Excluir) ---
-with aba1:
-    df_c = carregar_dados(CLIENTES_FILE, ["Nome", "CPF", "Endereço", "Telefone", "Data Cadastro"])
-    
-    st.subheader("📝 Gerenciar Cliente")
-    
-    # Campos de entrada
-    nome = st.text_input("Nome Completo")
-    cpf_input = st.text_input("CPF (ID Único para buscar/editar/excluir)")
-    endereco = st.text_area("Endereço")
-    tel = st.text_input("Telefone")
-    
-    # Organização dos botões para Celular (Um ao lado do outro ou empilhados)
-    col_b1, col_b2, col_b3 = st.columns(3)
-    
-    with col_b1:
-        if st.button("💾 Salvar", use_container_width=True, type="primary"):
-            if nome and cpf_input:
-                agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                novo = pd.DataFrame([{"Nome": nome, "CPF": cpf_input, "Endereço": endereco, "Telefone": tel, "Data Cadastro": agora}])
-                df_c = pd.concat([df_c, novo], ignore_index=True)
-                df_c.to_excel(CLIENTES_FILE, index=False)
-                st.success("Salvo!")
-                st.rerun()
-    
-    with col_b2:
-        if st.button("🔄 Editar", use_container_width=True):
-            if cpf_input in df_c['CPF'].values:
-                df_c.loc[df_c['CPF'] == cpf_input, ["Nome", "Endereço", "Telefone"]] = [nome, endereco, tel]
-                df_c.to_excel(CLIENTES_FILE, index=False)
-                st.success("Atualizado!")
-                st.rerun()
-            else:
-                st.error("CPF não encontrado!")
+# --- PÁGINA 1: LANÇAMENTOS ---
+if pagina == "💰 Lançamentos":
+    st.header("💵 Novo Lançamento de Venda")
+    df_v = carregar_dados(VENDAS_FILE, ["Data", "Cliente", "Descrição", "Tipo",
+                          "Valor", "Pagamento", "Documento", "NF", "Recebido", "Comentário"])
 
-    with col_b3:
-        if st.button("🗑️ Excluir", use_container_width=True):
-            if cpf_input in df_c['CPF'].values:
-                df_c = df_c[df_c['CPF'] != cpf_input]
-                df_c.to_excel(CLIENTES_FILE, index=False)
-                st.warning("Removido!")
-                st.rerun()
-            else:
-                st.error("CPF não encontrado!")
+    with st.container(border=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            data_v = st.date_input("Data da Venda", datetime.now())
+            cliente = st.text_input("Nome do Cliente")
+            desc = st.radio(
+                "Descrição:", ["Fisioterapia", "Pilates", "Outros"], horizontal=True)
+            tipo = st.radio("Tipo:", ["Serviço", "Comercial"], horizontal=True)
+        with col2:
+            valor_v = st.number_input(
+                "Valor (R$)", min_value=0.0, format="%.2f")
+            forma_p = st.radio(
+                "Pagamento:", ["Pix", "Dinheiro", "Crédito"], horizontal=True)
+            doc = st.radio("Pessoa:", ["PF", "PJ"], horizontal=True)
+            nf = st.selectbox("Nota Fiscal?", ["Não", "Sim"])
+            recebido = st.selectbox("Recebido?", ["Sim", "Não"])
 
-    st.divider()
-    st.subheader("📋 Lista de Clientes")
-    st.dataframe(df_c, use_container_width=True, hide_index=True)
+        coment_v = st.text_area("Comentário")
 
-# --- ABA 2: AGENDA (Com opção de excluir agendamento) ---
-with aba2:
-    df_a = carregar_dados(AGENDA_FILE, ["Dia", "Horário", "Cliente"])
-    horas = [f"{h:02d}:00" for h in range(7, 23) if h not in [12, 13]]
-    dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
+        if st.button("💾 Salvar Venda", type="primary", use_container_width=True):
+            novo_v = pd.DataFrame([{
+                "Data": data_v.strftime("%d/%m/%Y"), "Cliente": cliente, "Descrição": desc,
+                "Tipo": tipo, "Valor": str(valor_v), "Pagamento": forma_p,
+                "Documento": doc, "NF": nf, "Recebido": recebido, "Comentário": coment_v
+            }])
+            df_v = pd.concat([df_v, novo_v], ignore_index=True)
+            df_v.to_excel(VENDAS_FILE, index=False)
+            st.success("Venda registrada!")
+            st.rerun()
 
-    # Seção para ADICIONAR ou EXCLUIR
-    col_ag1, col_ag2 = st.columns([1, 2])
+    st.subheader("📋 Últimos Lançamentos")
+    st.dataframe(df_v.tail(10), use_container_width=True)
 
-    with col_ag1:
-        st.subheader("📌 Agendamento")
-        d_sel = st.selectbox("Escolha o Dia", dias)
-        h_sel = st.selectbox("Escolha a Hora", horas)
-        
-        # Parte de Adicionar
-        n_lista = df_c['Nome'].tolist() if not df_c.empty else []
-        c_sel = st.selectbox("Selecionar Cliente para Agendar", n_lista if n_lista else ["Vazio"])
-        
-        if st.button("🗓️ Confirmar Horário", use_container_width=True, type="primary"):
-            lotacao = df_a[(df_a['Dia'] == d_sel) & (df_a['Horário'] == h_sel)]
-            if len(lotacao) < 4:
-                novo_ag = pd.DataFrame([{"Dia": d_sel, "Horário": h_sel, "Cliente": c_sel}])
-                df_a = pd.concat([df_a, novo_ag], ignore_index=True)
-                df_a.to_excel(AGENDA_FILE, index=False)
-                st.success("Agendado!")
-                st.rerun()
-            else:
-                st.error("Lotado!")
+# --- PÁGINA 2: DESPESAS ---
+elif pagina == "📉 Despesas":
+    st.header("💸 Registro de Despesas")
+    df_d = carregar_dados(DESPESAS_FILE, [
+                          "Data", "Despesa", "Valor", "Tipo", "Pagamento", "Parcelas", "NF", "Pago", "Comentário"])
+
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            data_d = st.date_input("Data da Despesa", datetime.now())
+            nome_d = st.text_input("Descrição da Despesa")
+            tipo_d = st.radio("Tipo de Despesa:", [
+                              "Fixa", "Variável", "Impostos", "Pessoal"], horizontal=True)
+        with c2:
+            valor_d = st.number_input(
+                "Valor da Despesa (R$)", min_value=0.0, format="%.2f")
+            forma_d = st.radio(
+                "Forma:", ["Pix", "Dinheiro", "Boleto", "Cartão"], horizontal=True)
+            parcelas = st.number_input("Parcelas", min_value=1, value=1)
+            nf_d = st.selectbox("Nota Fiscal?", ["Sim", "Não"], key="d_nf")
+            pago = st.selectbox("Pago?", ["Sim", "Não"], key="d_pago")
+
+        coment_d = st.text_area("Comentário Despesa")
+
+        if st.button("💾 Salvar Despesa", type="primary", use_container_width=True):
+            nova_d = pd.DataFrame([{
+                "Data": data_d.strftime("%d/%m/%Y"), "Despesa": nome_d, "Valor": str(valor_d),
+                "Tipo": tipo_d, "Pagamento": forma_d, "Parcelas": str(parcelas),
+                "NF": nf_d, "Pago": pago, "Comentário": coment_d
+            }])
+            df_d = pd.concat([df_d, nova_d], ignore_index=True)
+            df_d.to_excel(DESPESAS_FILE, index=False)
+            st.success("Despesa registrada!")
+            st.rerun()
+
+# --- PÁGINA 3: RESUMO GERAL COM GRÁFICO DE DUAS BARRAS ---
+elif pagina == "📊 Resumo Geral":
+    st.header("📊 Análise Mensal Comparativa")
+
+    df_v = carregar_dados(VENDAS_FILE, ["Data", "Valor", "Recebido"])
+    df_d = carregar_dados(DESPESAS_FILE, ["Data", "Valor", "Pago"])
+
+    if not df_v.empty or not df_d.empty:
+        # Conversão de dados para cálculo
+        df_v['Data'] = pd.to_datetime(
+            df_v['Data'], dayfirst=True, errors='coerce')
+        df_d['Data'] = pd.to_datetime(
+            df_d['Data'], dayfirst=True, errors='coerce')
+        df_v['Valor'] = pd.to_numeric(df_v['Valor'], errors='coerce').fillna(0)
+        df_d['Valor'] = pd.to_numeric(df_d['Valor'], errors='coerce').fillna(0)
+
+        # Filtro de Ano
+        anos = sorted(list(set(df_v['Data'].dt.year.dropna()) | set(
+            df_d['Data'].dt.year.dropna())), reverse=True)
+        if not anos:
+            anos = [datetime.now().year]
+        ano_sel = st.selectbox("Selecione o Ano:", anos)
+
+        # Filtrar o que está pago/recebido no ano escolhido
+        v_ano = df_v[(df_v['Recebido'] == "Sim") &
+                     (df_v['Data'].dt.year == ano_sel)]
+        d_ano = df_d[(df_d['Pago'] == "Sim") & (
+            df_d['Data'].dt.year == ano_sel)]
+
+        # Agrupar por mês (1-12)
+        meses_nomes = ["Jan", "Fev", "Mar", "Abr", "Mai",
+                       "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+        res_v = v_ano.groupby(v_ano['Data'].dt.month)[
+            'Valor'].sum().reindex(range(1, 13), fill_value=0)
+        res_d = d_ano.groupby(d_ano['Data'].dt.month)[
+            'Valor'].sum().reindex(range(1, 13), fill_value=0)
+
+        # Criar DataFrame para o gráfico de 2 barras
+        df_chart = pd.DataFrame({
+            "Mês": meses_nomes,
+            "Lançamentos Pagos": res_v.values,
+            "Despesas Pagas": res_d.values
+        }).set_index("Mês")
+
+        # Exibir Métricas
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Receita (Ano)", f"R$ {res_v.sum():,.2f}")
+        c2.metric("Despesas (Ano)",
+                  f"R$ {res_d.sum():,.2f}", delta_color="inverse")
+        c3.metric("Saldo", f"R$ {(res_v.sum() - res_d.sum()):,.2f}")
 
         st.divider()
-        # PARTE DE EXCLUIR AGENDAMENTO
-        st.subheader("🗑️ Cancelar Horário")
-        # Filtra quem está agendado no dia e hora selecionados acima
-        quem_esta_agendado = df_a[(df_a['Dia'] == d_sel) & (df_a['Horário'] == h_sel)]['Cliente'].tolist()
-        
-        if quem_esta_agendado:
-            cliente_remover = st.selectbox("Quem deseja remover?", quem_esta_agendado)
-            if st.button("❌ Remover Agendamento", use_container_width=True):
-                # Remove a linha específica
-                df_a = df_a.drop(df_a[(df_a['Dia'] == d_sel) & 
-                                      (df_a['Horário'] == h_sel) & 
-                                      (df_a['Cliente'] == cliente_remover)].index)
-                df_a.to_excel(AGENDA_FILE, index=False)
-                st.warning("Cancelado!")
-                st.rerun()
-        else:
-            st.info("Ninguém agendado neste horário.")
-
-    with col_ag2:
-        st.subheader("🗓️ Quadro Semanal")
-        grade = []
-        for h in horas:
-            linha = {"Horário": h}
-            for d in dias:
-                clientes_vaga = df_a[(df_a['Dia'] == d) & (df_a['Horário'] == h)]['Cliente'].tolist()
-                linha[d] = " | ".join([str(c) for c in clientes_vaga if c])
-            grade.append(linha)
-        
-        st.dataframe(pd.DataFrame(grade), use_container_width=True, hide_index=True)
+        st.subheader(f"📊 Fluxo de Caixa {ano_sel} (Lado a Lado)")
+        # Gráfico com cores: Verde para Receita, Vermelho para Despesa
+        st.bar_chart(df_chart, color=["#2ecc71", "#e74c3c"])
+    else:
+        st.info("Aguardando dados marcados como 'Sim' em Recebido/Pago.")
