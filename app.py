@@ -10,7 +10,7 @@ st.set_page_config(page_title="Painel Financeiro", layout="wide")
 st.title("📊 Painel Financeiro")
 
 # Nome do seu arquivo Excel (certifique-se de que ele esteja no GitHub)
-ARQUIVO_EXCEL = "seu_arquivo.xlsx" 
+ARQUIVO_EXCEL = "gestao_financeira.xlsx" 
 
 # --- CARREGAMENTO DE DADOS ---
 @st.cache_data
@@ -59,3 +59,4 @@ if not df_v.empty:
         st.warning(f"Não há dados para o ano de {ano_sel}.")
 else:
     st.info("Aguardando carregamento dos dados...")
+
