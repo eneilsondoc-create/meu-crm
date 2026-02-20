@@ -7,98 +7,91 @@ import os
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Painel Financeiro", layout="wide")
 
-# Nome do arquivo no seu GitHub
+# --- ESTILO CSS PARA MELHORAR O VISUAL ---
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
+
 ARQUIVO_EXCEL = "gestao_financeira.xlsx"
 
-# --- FUNÇÃO DE CARREGAMENTO ---
+# --- CARREGAMENTO DE DADOS ---
 @st.cache_data
 def carregar_dados():
     if os.path.exists(ARQUIVO_EXCEL):
         df = pd.read_excel(ARQUIVO_EXCEL)
-        # 1. Converte coluna Data e remove erros (NaT)
+        # Converte e limpa datas
         df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
         df = df.dropna(subset=['Data'])
-        # 2. ORDENAÇÃO: Crucial para o gráfico não ficar estranho
-        df = df.sort_values(by='Data')
+        # IMPORTANTE: Ordenar por data para o gráfico não ficar "vai e vem"
+        df = df.sort_values('Data')
         return df
     return pd.DataFrame()
 
 df_v = carregar_dados()
 
 if not df_v.empty:
-    # --- BARRA LATERAL (FILTROS) ---
-    st.sidebar.header("📌 Filtros")
+    # --- BARRA LATERAL (SIDEBAR) ---
+    st.sidebar.image("https://cdn-icons-png.flaticon.com/512/5542/5542146.png", width=100)
+    st.sidebar.title("Filtros do Painel")
     
-    # Seleção de Ano
-    anos = sorted(df_v['Data'].dt.year.unique(), reverse=True)
-    ano_sel = st.sidebar.selectbox("Selecione o Ano", anos)
+    anos_disponiveis = sorted(df_v['Data'].dt.year.unique(), reverse=True)
+    ano_sel = st.sidebar.selectbox("📅 Selecione o Ano", anos_disponiveis)
     
-    # Seleção de Mês
-    meses_disponiveis = sorted(df_v[df_v['Data'].dt.year == ano_sel]['Data'].dt.month.unique())
+    # Filtro de mês opcional
     meses_nome = {1:'Jan', 2:'Fev', 3:'Mar', 4:'Abr', 5:'Mai', 6:'Jun', 
                   7:'Jul', 8:'Ago', 9:'Set', 10:'Out', 11:'Nov', 12:'Dez'}
-    
-    mes_sel = st.sidebar.multiselect(
-        "Selecione os Meses", 
-        options=meses_disponiveis,
-        format_func=lambda x: meses_nome[x],
-        default=meses_disponiveis
-    )
+    mes_sel = st.sidebar.multiselect("📆 Filtrar Meses", 
+                                    options=list(meses_nome.keys()), 
+                                    format_func=lambda x: meses_nome[x],
+                                    default=list(meses_nome.keys()))
 
-    # --- FILTRAGEM DOS DADOS ---
+    # --- FILTRAGEM ---
     df_filtrado = df_v[(df_v['Data'].dt.year == ano_sel) & (df_v['Data'].dt.month.isin(mes_sel))]
 
-    # --- CORPO DO PAINEL ---
+    # --- CORPO PRINCIPAL ---
     st.title("📊 Painel Financeiro")
     
-    # Métricas principais em colunas
-    m1, m2, m3 = st.columns(3)
-    total_periodo = df_filtrado['Valor'].sum() if 'Valor' in df_filtrado.columns else 0
-    m1.metric("Receita Total", f"R$ {total_periodo:,.2f}")
-    m2.metric("Qtd. Registros", len(df_filtrado))
-    m3.metric("Ano", ano_sel)
+    # Métricas de Resumo
+    col1, col2, col3 = st.columns(3)
+    total_valor = df_filtrado['Valor'].sum() if 'Valor' in df_filtrado.columns else 0
+    qtd_transacoes = len(df_filtrado)
+    
+    col1.metric("Total no Período", f"R$ {total_valor:,.2f}")
+    col2.metric("Transações", qtd_transacoes)
+    col3.metric("Ano Selecionado", ano_sel)
 
-    # --- GRÁFICO DE EVOLUÇÃO ---
+    # --- GRÁFICO ---
     st.subheader("📈 Evolução Financeira")
+    
     if not df_filtrado.empty:
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=df_filtrado['Data'], 
             y=df_filtrado['Valor'],
             mode='lines+markers',
-            line=dict(color='#00d4ff', width=3),
-            marker=dict(size=7),
-            name="Valor"
+            line=dict(color='#0083B8', width=3),
+            marker=dict(size=8),
+            hovertemplate="Data: %{x}<br>Valor: R$ %{y:.2f}<extra></extra>"
         ))
-        fig.update_layout(
-            template="plotly_dark",
-            xaxis_title="Data",
-            yaxis_title="Valor (R$)",
-            height=400,
-            margin=dict(l=20, r=20, t=20, b=20)
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Nenhum dado para os filtros aplicados.")
-
-    # --- ÁREA DE EDIÇÃO (CORREÇÃO DO SUBMIT BUTTON) ---
-    st.divider()
-    st.subheader("📝 Gerenciar Registros")
-    
-    with st.expander("Ver Tabela e Editar"):
-        # Mostra a tabela
-        st.dataframe(df_filtrado, use_container_width=True)
         
-        # Exemplo de formulário corrigido (Evita o erro de "Missing Submit Button")
-        with st.form("form_edicao"):
-            st.write("Para editar um registro, use o formulário abaixo:")
-            # Adicione aqui seus inputs de edição (ex: st.text_input...)
-            
-            # TODO O FORMULÁRIO PRECISA DE UM BOTÃO DE SUBMIT
-            submit = st.form_submit_button("Salvar Alterações")
-            if submit:
-                st.info("Funcionalidade de salvamento em desenvolvimento.")
-
+        fig.update_layout(
+            margin=dict(l=20, r=20, t=20, b=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=True, gridcolor='LightGray'),
+            yaxis=dict(showgrid=True, gridcolor='LightGray'),
+            height=450
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Tabela de dados
+        with st.expander("📄 Ver dados detalhados"):
+            st.dataframe(df_filtrado, use_container_width=True)
+    else:
+        st.warning("Nenhum dado encontrado para os filtros selecionados.")
 else:
-    st.error("O arquivo 'gestao_financeira.xlsx' não foi carregado corretamente.")
-  
+    st.error("Não foi possível carregar os dados. Verifique o arquivo Excel.")
